@@ -1,0 +1,19 @@
+plugins {
+    id 'java'
+}
+
+group 'com.mods.sync.annotation'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile 'com.squareup:javapoet:1.11.1'
+    compile 'com.google.auto.service:auto-service:1.0-rc4'
+    compile'io.netty:netty-all:4.1.9.Final'
+}
