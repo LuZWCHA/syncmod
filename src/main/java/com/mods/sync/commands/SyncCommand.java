@@ -16,7 +16,7 @@ import java.util.List;
 public class SyncCommand extends CommandBase {
     @Override
     public String getName() {
-        return "com/mods/sync";
+        return "sync";
     }
 
     @Override

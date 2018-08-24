@@ -22,6 +22,7 @@ public class RouterSource implements NettyRouter.RouterSource {
     classInstances.put("ModHandler",new com.mods.sync.core.ModHandler());
     methodMap.put("GET:/modList","ModHandler$handle1");
     methodMap.put("GET:/mod/*","ModHandler$handle3");
+    methodMap.put("HEAD:/mod/*","ModHandler$handle4");
     methodMap.put("GET:/favicon.ico","ModHandler$handle2");
   }
 

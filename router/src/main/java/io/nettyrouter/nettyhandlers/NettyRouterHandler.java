@@ -10,14 +10,15 @@ import io.nettyrouter.annotation.NettyRouter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
+import java.util.logging.Logger;
 
 public class NettyRouterHandler<T> implements NettyRouter.RouterProxy<T>{
+    private Logger logger = Logger.getLogger(getClass().getSimpleName());
     private Class<T> TClass;
     private NettyRouter.PreHandler<T> preHandler;
 
     public NettyRouterHandler(Class<T> tClass){
         TClass = tClass;
-        //proxy = (source == null ? createSource():source);
     }
 
     @Override
@@ -51,9 +52,8 @@ public class NettyRouterHandler<T> implements NettyRouter.RouterProxy<T>{
                     throw new RuntimeException("source check failed");
                 method.invoke(instance,ctx,msg);
             } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-
                 routerMethodExecuteFailed(ctx,url);
-                throw new RuntimeException("method invoke failed");
+                throw new RuntimeException("method invoke failed:" + e.getCause().getMessage());
             }
         }
     }
@@ -72,22 +72,22 @@ public class NettyRouterHandler<T> implements NettyRouter.RouterProxy<T>{
 
     //below methods are HTTP 1.1 Respond
     private void routerMethodExecuteFailed(ChannelHandlerContext ctx,String url){
-        System.err.println(url+": matched, but exec failed,check the fun and make true it's para is right");
+        logger.warning(url+": matched, but exec failed,check the fun and make true it's para is right,and it shouldn't throws exceptions");
         respond(ctx,HttpResponseStatus.INTERNAL_SERVER_ERROR);
     }
 
     private void routerMatchedFailed(ChannelHandlerContext ctx,String url){
-        System.out.println(url+": nothing matched");
+        logger.warning(url+": nothing matched");
         respond(ctx,HttpResponseStatus.NOT_FOUND);
     }
 
     private void respond(ChannelHandlerContext ctx,HttpResponseStatus status){
-        System.out.println("failed response send");
+        logger.warning("failed response send");
         ctx.writeAndFlush(new DefaultHttpResponse(HttpVersion.HTTP_1_1,status))
                 .addListener(ChannelFutureListener.CLOSE);
     }
 
-    public void setPreHandler(NettyRouter.PreHandler preHandler) {
+    public void setPreHandler(NettyRouter.PreHandler<T> preHandler) {
         this.preHandler = preHandler;
     }
 }

@@ -47,12 +47,12 @@ public class SyncMod{
     @Mod.EventHandler
     public void FMLStart(FMLServerStartingEvent event){
         event.registerServerCommand(new SyncCommand());
-        //event.getServer().getServerThread().getId();
     }
 
     @Mod.EventHandler
     public void FMLStop(FMLServerStoppingEvent event){
         HTTP_SERVER.stop();
+        logger.info("SyncMod unloaded!");
     }
 
     @Mod.EventHandler

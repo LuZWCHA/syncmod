@@ -6,15 +6,18 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.nettyrouter.nettyhandlers.NettyRouterHandler;
 import io.nettyrouter.nettyhandlers.RouterChannelInboundHandler;
 
+import java.util.logging.Logger;
+
 public class HttpRouterHandler extends RouterChannelInboundHandler<FullHttpRequest> {
+    Logger logger = Logger.getLogger(getClass().getSimpleName());
 
     protected HttpRouterHandler() throws Exception {
         super();
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        //System.out.println(cause.toString());
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception{
+        super.exceptionCaught(ctx,cause.getCause());
     }
 
     @Override

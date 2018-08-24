@@ -16,11 +16,7 @@ import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
-import io.netty.handler.timeout.ReadTimeoutHandler;
-import io.netty.handler.traffic.ChannelTrafficShapingHandler;
 import io.netty.handler.traffic.GlobalChannelTrafficShapingHandler;
-import io.netty.util.concurrent.DefaultEventExecutorGroup;
-import io.netty.util.concurrent.EventExecutorGroup;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import net.minecraftforge.fml.common.ModContainer;
@@ -66,7 +62,6 @@ public class Server {
         Optional.ofNullable(SyncMod.Instance).ifPresent(new Consumer<SyncMod>() {
             @Override
             public void accept(SyncMod syncMod) {
-                //modList = SyncMod.Instance.getModList();
                 logger = SyncMod.logger;
             }
         });
@@ -98,7 +93,6 @@ public class Server {
                                 long writeSingleLimit = (long) (writeLimit / (double)SyncMod.CONFIG_REF.getConnectionNum())* 2;
                                 handler.setWriteChannelLimit(writeSingleLimit);
                                 handler.setReadChannelLimit(2*M);
-                                logger.info("total write limit:"+writeLimit +",single limit:"+writeSingleLimit);
 
                                 p.addLast(new LoggingHandler(LogLevel.DEBUG))
                                         .addLast(handler)
@@ -156,6 +150,7 @@ public class Server {
             boss.shutdownGracefully();
         if(worker != null)
             worker.shutdownGracefully();
+        logger.info("Stop Http Server");
     }
 
     public int getState(){

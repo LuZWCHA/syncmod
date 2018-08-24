@@ -4,6 +4,7 @@ import com.google.common.io.ByteStreams;
 import com.google.gson.Gson;
 import com.mods.sync.SyncMod;
 import com.mods.sync.beans.TransMod;
+import com.mods.sync.utils.HttpUtils;
 import com.mods.sync.utils.PathUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -11,12 +12,12 @@ import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.stream.ChunkedFile;
 import io.nettyrouter.annotation.NettyRouter;
+import io.nettyrouter.utils.HttpMethod;
 import io.nettyrouter.utils.UrlParameterObtain;
 import net.minecraftforge.fml.common.ModContainer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 
-import javax.activation.MimetypesFileTypeMap;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
@@ -26,7 +27,6 @@ import java.util.Map;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.*;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static io.netty.handler.codec.http.HttpUtil.setContentLength;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @NettyRouter.Router
@@ -61,34 +61,43 @@ public class ModHandler{
 
             File file = SyncMod.Instance.getModList().get(modName).getSource();
 
-            if(!checkFile(file)) {
+            if(!HttpUtils.checkFileAccession(file)) {
                 sendError(ctx, NO_CONTENT);
                 return;
             }
-
             RandomAccessFile randomAccessFile;
+
             try {
-                randomAccessFile = new RandomAccessFile(file,"r");// 以只读的方式打开文件
+                randomAccessFile = new RandomAccessFile(file,"r");
             } catch (FileNotFoundException e) {
                 sendError(ctx, NOT_FOUND);
                 return;
             }
+            final long fileLength = randomAccessFile.length();
+            final HttpUtils.Range range = HttpUtils.getRang(msg).orElse(new HttpUtils.Range());
 
-            long fileLength = randomAccessFile.length();
-            HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
-            setContentLength(response, fileLength);
-            setContentTypeHeader(response, file);
+            HttpResponse response = new DefaultHttpResponse(HTTP_1_1, range.isEmpty() ? OK:PARTIAL_CONTENT);
+            long start = 0;
+            long end = fileLength - 1;
+            if(!range.isEmpty()) {
+                start = range.getStart() == -1 ? fileLength - range.getEnd() : range.getStart();
+                end = range.getEnd() == -1 ? end : range.getEnd();
+                HttpUtils.setRangeAccept(response,start ,end, fileLength);
+            }
+
+            HttpUtil.setContentLength(response, end - start + 1);
+            HttpUtils.setContentTypeHeader(response, file);
 
             if (HttpUtil.isKeepAlive(msg)) {
                 response.headers().set(CONNECTION, HttpHeaderValues.KEEP_ALIVE);
             }
-            log.info("download "+ file.getName() +" from:" + getIpAddress(ctx,msg));
 
+            log.info("download "+ file.getName() +" from:" + getIpAddress(ctx,msg) + " range:"+start+"-"+end);
             ctx.write(response);
-            ctx.write(new HttpChunkedInput(new ChunkedFile(randomAccessFile, 0, fileLength, 8192)), ctx.newProgressivePromise())
+
+            ctx.write(new HttpChunkedInput(new ChunkedFile(randomAccessFile, start, end - start + 1, 8192)), ctx.newProgressivePromise())
                     .addListener(
                             new ChannelProgressiveFutureListener() {
-
                                 @Override
                                 public void operationProgressed(ChannelProgressiveFuture future,
                                                                 long progress, long total) {
@@ -97,9 +106,12 @@ public class ModHandler{
                                 @Override
                                 public void operationComplete(ChannelProgressiveFuture future)
                                         throws Exception {
-                                    if(future.isCancelled())
-                                        log.info("stopped by client");
-                                    log.info(file.getName()+" download complete.");
+                                    if(future.isDone() && future.isSuccess())
+                                        log.info(file.getName()+" download complete.");
+                                    else {
+                                        log.warn("stopped");
+                                        sendError(ctx,INTERNAL_SERVER_ERROR);
+                                    }
                                 }
             });
             ChannelFuture lastContentFuture = ctx
@@ -108,11 +120,58 @@ public class ModHandler{
             if (!HttpUtil.isKeepAlive(msg)) {
                 lastContentFuture.addListener(ChannelFutureListener.CLOSE);
             }
+
         } catch (IOException e) {
             e.printStackTrace();
+            sendError(ctx,HttpResponseStatus.INTERNAL_SERVER_ERROR);
         }
 
     }
+
+    @NettyRouter.RouterHandler(httpMethod = HttpMethod.HEAD,routerUri = "/mod/*")
+    public void handle4(ChannelHandlerContext ctx,FullHttpRequest msg){
+        try {
+            String uri = URLDecoder.decode(msg.uri(), "UTF-8");
+            String modName = UrlParameterObtain.getMetaDataOfUrl(uri,2).orElse("");
+
+            File file = SyncMod.Instance.getModList().get(modName).getSource();
+
+            if(!HttpUtils.checkFileAccession(file)) {
+                sendError(ctx, NO_CONTENT);
+                return;
+            }
+
+            final long fileLength = file.length();
+            final HttpUtils.Range range = HttpUtils.getRang(msg).orElse(new HttpUtils.Range());
+
+            HttpResponse response = new DefaultHttpResponse(HTTP_1_1, range.isEmpty() ? OK:PARTIAL_CONTENT);
+            long start = 0;
+            long end = fileLength - 1;
+            if(!range.isEmpty()) {
+                start = range.getStart() == -1 ? fileLength - range.getEnd() : range.getStart();
+                end = range.getEnd() == -1 ? end : range.getEnd();
+                HttpUtils.setRangeAccept(response,start ,end, fileLength);
+            }
+
+            HttpUtil.setContentLength(response, end - start + 1);
+            HttpUtils.setContentTypeHeader(response, file);
+
+            if (HttpUtil.isKeepAlive(msg)) {
+                response.headers().set(CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+            }
+
+            ChannelFuture channelFuture = ctx.writeAndFlush(response);
+
+            if (!HttpUtil.isKeepAlive(msg)) {
+                channelFuture.addListener(ChannelFutureListener.CLOSE);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            sendError(ctx,HttpResponseStatus.INTERNAL_SERVER_ERROR);
+        }
+
+    }
+
 
     @NettyRouter.RouterHandler(routerUri = "/favicon.ico")
     public void handle2(ChannelHandlerContext ctx,FullHttpRequest msg){
@@ -161,17 +220,7 @@ public class ModHandler{
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
-    private static void setContentTypeHeader(HttpResponse response, File file) {
-        MimetypesFileTypeMap mimeTypesMap = new MimetypesFileTypeMap();
-        response.headers().set(CONTENT_TYPE,
-                mimeTypesMap.getContentType(file.getName()));
-        response.headers().set(CONTENT_DISPOSITION,"attachment;filename="+file.getName());
-    }
-
-    private boolean checkFile(File file){
-        return file!= null && file.exists() && file.canRead() && file.isFile();
-    }
-
+    //copy from internet
     private static String getIpAddress(ChannelHandlerContext ctx,FullHttpRequest request) {
         String Xip = request.headers().get("X-Real-IP");
         String XFor = request.headers().get("X-Forwarded-For");
