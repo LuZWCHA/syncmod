@@ -4,6 +4,7 @@ import com.google.common.io.ByteStreams;
 import com.google.gson.Gson;
 import com.mods.sync.SyncMod;
 import com.mods.sync.beans.TransMod;
+import com.mods.sync.config.UrlSourceRef;
 import com.mods.sync.utils.HttpUtils;
 import com.mods.sync.utils.PathUtils;
 import io.netty.buffer.ByteBuf;
@@ -14,6 +15,7 @@ import io.netty.handler.stream.ChunkedFile;
 import io.nettyrouter.annotation.NettyRouter;
 import io.nettyrouter.utils.HttpMethod;
 import io.nettyrouter.utils.UrlParameterObtain;
+import joptsimple.internal.Strings;
 import net.minecraftforge.fml.common.ModContainer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -58,6 +60,23 @@ public class ModHandler{
         try {
             String uri = URLDecoder.decode(msg.uri(), "UTF-8");
             String modName = UrlParameterObtain.getMetaDataOfUrl(uri,2).orElse("");
+            String url = UrlSourceRef.getUrlSource().get(modName);
+            // TODO: 2018/8/31 add a statement to respond with HTTP code 302 if possible
+            if(!Strings.isNullOrEmpty(url)){
+                String location = UrlSourceRef.getUrlSource().get(modName);
+                HttpResponse response = new DefaultHttpResponse(HTTP_1_1,FOUND);
+                response.headers().set(LOCATION,location);
+                if (HttpUtil.isKeepAlive(msg)) {
+                    response.headers().set(CONNECTION, KEEP_ALIVE);
+                }
+
+                ChannelFuture channelFuture = ctx.writeAndFlush(response);
+
+                if (!HttpUtil.isKeepAlive(msg)) {
+                    channelFuture.addListener(ChannelFutureListener.CLOSE);
+                }
+                return;
+            }
 
             File file = SyncMod.Instance.getModList().get(modName).getSource();
 

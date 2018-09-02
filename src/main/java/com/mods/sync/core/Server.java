@@ -33,8 +33,6 @@ import java.util.function.Consumer;
 public class Server {
     private int port;
     private ConfigRef configRef;
-    private List<ModContainer> modList;
-    private ServerBootstrap bootstrap;
     private Logger logger;
     private ChannelFuture channelFuture;
 
@@ -59,12 +57,7 @@ public class Server {
         if(configRef == null)
             configRef = new ConfigRef();
         this.configRef = configRef;
-        Optional.ofNullable(SyncMod.Instance).ifPresent(new Consumer<SyncMod>() {
-            @Override
-            public void accept(SyncMod syncMod) {
-                logger = SyncMod.logger;
-            }
-        });
+        Optional.ofNullable(SyncMod.Instance).ifPresent(syncMod -> logger = SyncMod.logger);
         logger = Optional.ofNullable(logger).orElse(LogManager.getLogger());
         state = -1;
     }
@@ -74,12 +67,12 @@ public class Server {
         boss = PlatformUtil.OSinfo.isLinux() ?new EpollEventLoopGroup():new NioEventLoopGroup();
         worker = PlatformUtil.OSinfo.isLinux() ?new EpollEventLoopGroup():new NioEventLoopGroup();
         try {
-            bootstrap = new ServerBootstrap();
+            ServerBootstrap bootstrap = new ServerBootstrap();
             bootstrap.group(boss, worker)
                     .channel(PlatformUtil.OSinfo.isLinux() ? EpollServerSocketChannel.class:NioServerSocketChannel.class)
                     .option(ChannelOption.SO_BACKLOG, configRef.getConnectionNum())
                     //set water mark to avoid OOM
-                    .option(ChannelOption.WRITE_BUFFER_WATER_MARK,new WriteBufferWaterMark(0, (int) (MAX_MEMORY * 0.3f)))
+                    .option(ChannelOption.WRITE_BUFFER_WATER_MARK,new WriteBufferWaterMark(0, (int) (MAX_MEMORY * 0.3f)))//30% of MAX_MEMORY can be used
                     .childOption(ChannelOption.SO_KEEPALIVE, configRef.isKeepAlive())
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                             @Override
@@ -97,7 +90,7 @@ public class Server {
                                 p.addLast(new LoggingHandler(LogLevel.DEBUG))
                                         .addLast(handler)
                                         .addLast(new HttpRequestDecoder())
-                                        .addLast(new HttpObjectAggregator(65535))
+                                        .addLast(new HttpObjectAggregator(65536))
                                         .addLast(new HttpResponseEncoder())
                                         .addLast(new ChunkedWriteHandler())
                                         .addLast(new HttpRouterHandler());
@@ -111,7 +104,6 @@ public class Server {
                     if (future.isSuccess()) {
                         logger.info(new StringFormattedMessage("server start at "+ channelFuture.channel().localAddress().toString()));
                     } else {
-                        // 输出错误信息
                         Throwable cause = future.cause();
                         cause.printStackTrace();
                         // do something....

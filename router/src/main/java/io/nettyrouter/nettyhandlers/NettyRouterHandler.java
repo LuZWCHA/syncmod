@@ -46,7 +46,7 @@ public class NettyRouterHandler<T> implements NettyRouter.RouterProxy<T>{
                 return;
             }
             try {
-                //method is known as a nonull Method
+                //method is known as a nonnull Method
                 Method method = instance.getClass().getMethod(methodName,ChannelHandlerContext.class,TClass);
                 if(!check(method,ctx,msg))
                     throw new RuntimeException("source check failed");

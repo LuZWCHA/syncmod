@@ -3,6 +3,7 @@ package com.mods.sync;
 import com.mods.sync.comm.CommonProxy;
 import com.mods.sync.commands.SyncCommand;
 import com.mods.sync.config.ConfigRef;
+import com.mods.sync.config.UrlSourceRef;
 import com.mods.sync.core.Server;
 import net.minecraftforge.fml.common.*;
 import net.minecraftforge.fml.common.event.*;
@@ -14,13 +15,14 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 @SuppressWarnings({"unused", "WeakerAccess"})
 @Mod(modid = SyncMod.MODID,version = SyncMod.VERSION,name = SyncMod.NAME,acceptedMinecraftVersions = "[1.7.10,1.12.2]" )
 public class SyncMod{
     public static final String MODID = "synctool";
     public final static String NAME = "SyncTool";
-    public final static String VERSION = "1.0";
+    public final static String VERSION = "1.2";
     public static Logger logger;
     private Map<String,ModContainer> modList;
     public static final ConfigRef CONFIG_REF = new ConfigRef();
@@ -53,6 +55,7 @@ public class SyncMod{
     public void FMLStop(FMLServerStoppingEvent event){
         HTTP_SERVER.stop();
         logger.info("SyncMod unloaded!");
+        UrlSourceRef.save();
     }
 
     @Mod.EventHandler
@@ -85,6 +88,9 @@ public class SyncMod{
             logger.info(modContainerStringPair.getKey().getModId().toLowerCase().trim()
                     +" version: "+modContainerStringPair.getKey().getVersion().trim());
         });
+
+        modList.forEach((s, modContainer) -> UrlSourceRef.getUrlSource().put(s,""));
+        UrlSourceRef.read();
         if(!modList.isEmpty())
             logger.info("-------------------------------------------------------------");
 
